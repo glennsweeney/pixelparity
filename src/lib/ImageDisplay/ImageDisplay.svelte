@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import { DrawContext } from './DrawContext';
+	import { draw } from 'svelte/transition';
 
 	let canvas: HTMLCanvasElement;
 	let gl: WebGL2RenderingContext | null;
@@ -21,13 +22,12 @@
 		drawContext = new DrawContext(gl);
 
 		drawContext.draw();
-
-		gl.clearColor(0.0, 0.0, 0.0, 1.0);
-		gl.clear(gl.COLOR_BUFFER_BIT);
 	});
 
 	onDestroy(() => {
-		drawContext.cleanup();
+		if (drawContext) {
+			drawContext.cleanup();
+		}
 	});
 </script>
 

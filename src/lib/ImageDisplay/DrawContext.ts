@@ -4,7 +4,7 @@ import type { ImageBuffer } from './image';
 /**
  * Represents a WebGL2 context.
  */
-export class GLContext {
+export class DrawContext {
 	/**
 	 * The WebGL2 rendering context.
 	 */
@@ -51,6 +51,51 @@ export class GLContext {
 			this.gl.deleteTexture(this.imageTexture);
 		}
 		this.imageTexture = initTextureForImage(this.gl, image);
+	}
+
+	public draw(): void {
+		// For now, hard-code the program we are drawing with.
+		const shaderProgram = this.shaderPrograms.default;
+
+		// Clear the canvas
+		this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
+		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+
+		// Choose the draw program
+		this.gl.useProgram(shaderProgram);
+
+		// Bind the quad buffer
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.quadBuffer);
+
+		// Map vertex indices to shader attributes
+		const attribPositionIndex = this.gl.getAttribLocation(shaderProgram, 'aVertexPosition');
+		this.gl.vertexAttribPointer(
+			attribPositionIndex,
+			2,
+			this.gl.FLOAT,
+			false,
+			4 * Float32Array.BYTES_PER_ELEMENT,
+			0
+		);
+
+		// If there's a texture, map texture indices to shader attributes
+		this.gl.enableVertexAttribArray(attribPositionIndex);
+		if (this.imageTexture) {
+			const attribTextureIndex = this.gl.getAttribLocation(shaderProgram, 'aTextureCoordinate');
+			this.gl.vertexAttribPointer(
+				attribTextureIndex,
+				2,
+				this.gl.FLOAT,
+				false,
+				4 * Float32Array.BYTES_PER_ELEMENT,
+				2 * Float32Array.BYTES_PER_ELEMENT
+			);
+			this.gl.enableVertexAttribArray(attribTextureIndex);
+			this.gl.activeTexture(this.gl.TEXTURE0);
+			this.gl.bindTexture(this.gl.TEXTURE_2D, this.imageTexture);
+			this.gl.uniform1i(this.gl.getUniformLocation(shaderProgram, 'uSampler'), 0);
+		}
+		this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
 	}
 }
 

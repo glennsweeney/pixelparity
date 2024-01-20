@@ -15,8 +15,15 @@ export class DrawContext {
 	 */
 	private quadBuffer: WebGLBuffer;
 
+	/**
+	 * A map of shader program names to shader programs.
+	 */
 	private shaderPrograms: { [key: string]: WebGLProgram };
 
+	/**
+	 * The image and corresponding texture containing the image to be rendered.
+	 */
+	private imageBuffer: ImageBuffer | null = null;
 	private imageTexture: WebGLTexture | null = null;
 
 	/**
@@ -50,10 +57,14 @@ export class DrawContext {
 		if (this.imageTexture) {
 			this.gl.deleteTexture(this.imageTexture);
 		}
+		this.imageBuffer = image;
 		this.imageTexture = initTextureForImage(this.gl, image);
 	}
 
 	public draw(): void {
+		// Handle any viewport size changes - assumes the canvas size is already updated.
+		this.gl.viewport(0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight);
+
 		// For now, hard-code the program we are drawing with.
 		const shaderProgram = this.shaderPrograms.default;
 
@@ -78,23 +89,47 @@ export class DrawContext {
 			0
 		);
 
+		if (!this.imageTexture || !this.imageBuffer) {
+			return;
+		}
+
 		// If there's a texture, map texture indices to shader attributes
 		this.gl.enableVertexAttribArray(attribPositionIndex);
-		if (this.imageTexture) {
-			const attribTextureIndex = this.gl.getAttribLocation(shaderProgram, 'aTextureCoordinate');
-			this.gl.vertexAttribPointer(
-				attribTextureIndex,
-				2,
-				this.gl.FLOAT,
-				false,
-				4 * Float32Array.BYTES_PER_ELEMENT,
-				2 * Float32Array.BYTES_PER_ELEMENT
+		const attribTextureIndex = this.gl.getAttribLocation(shaderProgram, 'aTextureCoordinate');
+		this.gl.vertexAttribPointer(
+			attribTextureIndex,
+			2,
+			this.gl.FLOAT,
+			false,
+			4 * Float32Array.BYTES_PER_ELEMENT,
+			2 * Float32Array.BYTES_PER_ELEMENT
+		);
+		this.gl.enableVertexAttribArray(attribTextureIndex);
+		this.gl.activeTexture(this.gl.TEXTURE0);
+		this.gl.bindTexture(this.gl.TEXTURE_2D, this.imageTexture);
+		this.gl.uniform1i(this.gl.getUniformLocation(shaderProgram, 'uSampler'), 0);
+
+		// Set the scale and offset uniforms in the texture to handle mapping the texture to the viewport
+		// while maintaining aspect ratio
+		const scaleX = this.gl.drawingBufferWidth / this.imageBuffer.width;
+		const scaleY = this.gl.drawingBufferHeight / this.imageBuffer.height;
+		if (scaleX > scaleY) {
+			this.gl.uniform2f(
+				this.gl.getUniformLocation(shaderProgram, 'uTexScale'),
+				scaleX / scaleY,
+				1.0
 			);
-			this.gl.enableVertexAttribArray(attribTextureIndex);
-			this.gl.activeTexture(this.gl.TEXTURE0);
-			this.gl.bindTexture(this.gl.TEXTURE_2D, this.imageTexture);
-			this.gl.uniform1i(this.gl.getUniformLocation(shaderProgram, 'uSampler'), 0);
+		} else {
+			this.gl.uniform2f(
+				this.gl.getUniformLocation(shaderProgram, 'uTexScale'),
+				1.0,
+				scaleY / scaleX
+			);
 		}
+
+		this.gl.uniform2f(this.gl.getUniformLocation(shaderProgram, 'uTexCenter'), 0.5, 0.5);
+
+		// Draw the quad
 		this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
 	}
 }
@@ -117,9 +152,9 @@ function initBuffer(gl: WebGL2RenderingContext): WebGLBuffer {
 	// VertexX, VertexY, TexCoordX, TexCoordY
 	// prettier-ignore
 	const coordinates = [
-        1.0,  1.0, 1.0, 0.0,
+         1.0,  1.0, 1.0, 0.0,
         -1.0,  1.0, 0.0, 0.0,
-        1.0, -1.0, 1.0, 1.0,
+         1.0, -1.0, 1.0, 1.0,
         -1.0, -1.0, 0.0, 1.0];
 
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(coordinates), gl.STATIC_DRAW);

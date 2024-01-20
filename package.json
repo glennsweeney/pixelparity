@@ -15,12 +15,11 @@
 		"test:unit": "vitest"
 	},
 	"dependencies": {
-		"@sveltejs/adapter-vercel": "^5.1.0",
 		"fast-png": "^6.2.0"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.28.1",
-		"@sveltejs/adapter-static": "^3.0.0",
+		"@sveltejs/adapter-vercel": "^5.1.0",
 		"@sveltejs/kit": "^2.0.0",
 		"@sveltejs/vite-plugin-svelte": "^3.0.0",
 		"@types/eslint": "8.56.0",

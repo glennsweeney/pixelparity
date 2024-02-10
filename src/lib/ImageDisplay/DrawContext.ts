@@ -33,7 +33,7 @@ export class DrawContext {
 	 */
 	constructor(gl: WebGL2RenderingContext) {
 		this.gl = gl;
-		this.quadBuffer = initBuffer(this.gl);
+		this.quadBuffer = initBuffer(this.gl, 1, 1);
 		this.shaderPrograms = initShaderPrograms(this.gl);
 	}
 
@@ -50,13 +50,23 @@ export class DrawContext {
 			this.gl.deleteProgram(program);
 		}
 		// Clean up buffer
-		this.gl.deleteBuffer(this.quadBuffer);
+		if (this.quadBuffer) {
+			this.gl.deleteBuffer(this.quadBuffer);
+		}
 	}
 
 	public loadImage(image: ImageBuffer): void {
+		if (this.quadBuffer) {
+			this.gl.deleteBuffer(this.quadBuffer);
+		}
 		if (this.imageTexture) {
 			this.gl.deleteTexture(this.imageTexture);
 		}
+
+		// Reload the quadBuffer based on the image size
+		this.quadBuffer = initBuffer(this.gl, image.height, image.width);
+
+		// Store the image and create a texture
 		this.imageBuffer = image;
 		this.imageTexture = initTextureForImage(this.gl, image);
 	}
@@ -65,12 +75,17 @@ export class DrawContext {
 		// Handle any viewport size changes - assumes the canvas size is already updated.
 		this.gl.viewport(0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight);
 
-		// For now, hard-code the program we are drawing with.
-		const shaderProgram = this.shaderPrograms.default;
-
 		// Clear the canvas
 		this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
 		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+
+		// Exit early if there's no image to draw
+		if (!this.imageTexture || !this.imageBuffer || !this.quadBuffer) {
+			return;
+		}
+
+		// For now, hard-code the program we are drawing with.
+		const shaderProgram = this.shaderPrograms.default;
 
 		// Choose the draw program
 		this.gl.useProgram(shaderProgram);
@@ -89,10 +104,6 @@ export class DrawContext {
 			0
 		);
 
-		if (!this.imageTexture || !this.imageBuffer) {
-			return;
-		}
-
 		// If there's a texture, map texture indices to shader attributes
 		this.gl.enableVertexAttribArray(attribPositionIndex);
 		const attribTextureIndex = this.gl.getAttribLocation(shaderProgram, 'aTextureCoordinate');
@@ -109,29 +120,49 @@ export class DrawContext {
 		this.gl.bindTexture(this.gl.TEXTURE_2D, this.imageTexture);
 		this.gl.uniform1i(this.gl.getUniformLocation(shaderProgram, 'uSampler'), 0);
 
-		// Set the scale and offset uniforms in the texture to handle mapping the texture to the viewport
-		// while maintaining aspect ratio
-		const scaleX = this.gl.drawingBufferWidth / this.imageBuffer.width;
-		const scaleY = this.gl.drawingBufferHeight / this.imageBuffer.height;
-		if (scaleX > scaleY) {
-			this.gl.uniform2f(
-				this.gl.getUniformLocation(shaderProgram, 'uTexScale'),
-				scaleX / scaleY,
-				1.0
-			);
+		const viewportAspectRatio = this.gl.drawingBufferWidth / this.gl.drawingBufferHeight;
+		const zoom: number = 2 / this.imageBuffer.width; // 2 because [-1, 1] is the range of the viewport
+		let scaleX: number = 1.0;
+		let scaleY: number = 1.0;
+		if (viewportAspectRatio < 1.0) {
+			scaleX = zoom;
+			scaleY = viewportAspectRatio * zoom;
 		} else {
-			this.gl.uniform2f(
-				this.gl.getUniformLocation(shaderProgram, 'uTexScale'),
-				1.0,
-				scaleY / scaleX
-			);
+			scaleX = zoom / viewportAspectRatio;
+			scaleY = zoom;
 		}
 
-		this.gl.uniform2f(this.gl.getUniformLocation(shaderProgram, 'uTexCenter'), 0.5, 0.5);
+		const transform = generateTransformationMatrix(
+			scaleX,
+			scaleY,
+			this.imageBuffer.width / 2,
+			this.imageBuffer.height / 2
+		);
+		console.log('transform', transform);
+		this.gl.uniformMatrix4fv(
+			this.gl.getUniformLocation(shaderProgram, 'viewTransform'),
+			false,
+			transform
+		);
 
 		// Draw the quad
 		this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
 	}
+}
+
+function generateTransformationMatrix(
+	scaleX: number,
+	scaleY: number,
+	centerX: number,
+	centerY: number
+): number[] {
+	// prettier-ignore
+	return [
+		scaleX, 0, 0, 0,
+		0, scaleY, 0, 0,
+		0, 0, 1, 0,
+		-centerX*scaleX, -centerY*scaleY, 0, 1
+	];
 }
 
 /**
@@ -141,7 +172,7 @@ export class DrawContext {
  * @returns The initialized WebGL buffer containing a single quad with vertex and texture coordinates.
  * @throws Error if the buffer creation or population fails.
  */
-function initBuffer(gl: WebGL2RenderingContext): WebGLBuffer {
+function initBuffer(gl: WebGL2RenderingContext, imageRows: number, imageCols: number): WebGLBuffer {
 	const quadBuffer = gl.createBuffer();
 	if (!quadBuffer || checkError(gl)) {
 		throw new Error('Failed to create buffer.');
@@ -152,10 +183,10 @@ function initBuffer(gl: WebGL2RenderingContext): WebGLBuffer {
 	// VertexX, VertexY, TexCoordX, TexCoordY
 	// prettier-ignore
 	const coordinates = [
-         1.0,  1.0, 1.0, 0.0,
-        -1.0,  1.0, 0.0, 0.0,
-         1.0, -1.0, 1.0, 1.0,
-        -1.0, -1.0, 0.0, 1.0];
+		0.0,       0.0,       0.0, 1.0,
+        0.0,       imageRows, 0.0, 0.0,
+        imageCols, 0.0,       1.0, 1.0,
+        imageCols, imageRows, 1.0, 0.0];
 
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(coordinates), gl.STATIC_DRAW);
 	if (checkError(gl)) {
@@ -255,10 +286,7 @@ function compileShader(
 	return shader;
 }
 
-export function initTextureForImage(
-	gl: WebGL2RenderingContext,
-	image: ImageBuffer
-): WebGLTexture | null {
+function initTextureForImage(gl: WebGL2RenderingContext, image: ImageBuffer): WebGLTexture | null {
 	const texture = gl.createTexture();
 	gl.bindTexture(gl.TEXTURE_2D, texture);
 

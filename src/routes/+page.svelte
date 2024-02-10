@@ -7,6 +7,8 @@
 	let leftBuffer: ImageBuffer;
 	let rightBuffer: ImageBuffer;
 
+	let zoom: number = 1.0;
+
 	onMount(async () => {
 		const response = await fetch('/default.png');
 		if (!response.ok) {
@@ -22,7 +24,6 @@
 			height: png.height,
 			channels: png.channels
 		};
-		console.log('imageBuffer', imageBuffer);
 
 		leftBuffer = imageBuffer;
 		rightBuffer = imageBuffer;
@@ -33,11 +34,11 @@
 
 <main>
 	<div class="column" id="left-column">
-		<ImageDisplay imageBuffer={leftBuffer} />
+		<ImageDisplay imageBuffer={leftBuffer} bind:zoom />
 	</div>
 	<div class="center-bar"></div>
 	<div class="column" id="right-column">
-		<ImageDisplay imageBuffer={rightBuffer} />
+		<ImageDisplay imageBuffer={rightBuffer} bind:zoom />
 	</div>
 </main>
 

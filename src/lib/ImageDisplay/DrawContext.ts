@@ -27,6 +27,11 @@ export class DrawContext {
 	private imageTexture: WebGLTexture | null = null;
 
 	/**
+	 * Image drawing settings
+	 */
+	private zoom: number = 1.0;
+
+	/**
 	 * Constructs a GLContext object from the given WebGL2 rendering context.
 	 * Initializes appropriate buffers, shaders, and textures necessary for image rendering.
 	 * @param gl The WebGL2 rendering context.
@@ -121,15 +126,15 @@ export class DrawContext {
 		this.gl.uniform1i(this.gl.getUniformLocation(shaderProgram, 'uSampler'), 0);
 
 		const viewportAspectRatio = this.gl.drawingBufferWidth / this.gl.drawingBufferHeight;
-		const zoom: number = 2 / this.imageBuffer.width; // 2 because [-1, 1] is the range of the viewport
+		const scale: number = (2 * this.zoom) / this.imageBuffer.width; // 2 because [-1, 1] is the range of the viewport
 		let scaleX: number = 1.0;
 		let scaleY: number = 1.0;
 		if (viewportAspectRatio < 1.0) {
-			scaleX = zoom;
-			scaleY = viewportAspectRatio * zoom;
+			scaleX = scale;
+			scaleY = viewportAspectRatio * scale;
 		} else {
-			scaleX = zoom / viewportAspectRatio;
-			scaleY = zoom;
+			scaleX = scale / viewportAspectRatio;
+			scaleY = scale;
 		}
 
 		const transform = generateTransformationMatrix(
@@ -138,7 +143,6 @@ export class DrawContext {
 			this.imageBuffer.width / 2,
 			this.imageBuffer.height / 2
 		);
-		console.log('transform', transform);
 		this.gl.uniformMatrix4fv(
 			this.gl.getUniformLocation(shaderProgram, 'viewTransform'),
 			false,
@@ -147,6 +151,15 @@ export class DrawContext {
 
 		// Draw the quad
 		this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
+	}
+
+	public setZoom(zoom: number): void {
+		if (zoom > 1.0) {
+			this.zoom = zoom;
+		} else {
+			this.zoom = 1.0;
+		}
+		this.draw();
 	}
 }
 

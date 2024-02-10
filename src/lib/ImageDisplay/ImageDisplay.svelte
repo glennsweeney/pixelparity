@@ -3,6 +3,8 @@
 	import { DrawContext } from './DrawContext';
 	import type { ImageBuffer } from './image';
 
+	export let zoom: number = 1;
+
 	export let imageBuffer: ImageBuffer | null;
 
 	let canvas: HTMLCanvasElement;
@@ -13,6 +15,10 @@
 	$: if (drawContext && imageBuffer) {
 		drawContext.loadImage(imageBuffer);
 		drawContext.draw();
+	}
+
+	$: if (drawContext && zoom) {
+		drawContext.setZoom(zoom);
 	}
 
 	function resizeCanvas() {
@@ -28,8 +34,14 @@
 		const mouseX = event.offsetX;
 		const mouseY = event.offsetY;
 
+		const newZoom = zoom * (1 + event.deltaY / 1000);
+		if (newZoom >= 1.0) {
+			zoom = newZoom;
+		} else {
+			zoom = 1.0;
+		}
+
 		console.log(`Mouse location: (${mouseX}, ${mouseY})`);
-		console.log(`Mouse wheel delta: ${event.deltaY}`);
 	}
 
 	onMount(() => {

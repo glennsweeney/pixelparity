@@ -4,10 +4,6 @@
 	import type { ImageBuffer } from '$lib/ImageDisplay/image';
 	import * as fastpng from 'fast-png';
 
-	let startWidthLeft: number;
-	let startWidthRight: number;
-	let startX: number;
-
 	let leftBuffer: ImageBuffer;
 	let rightBuffer: ImageBuffer;
 
